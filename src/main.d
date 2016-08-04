@@ -16,29 +16,30 @@ init:
 	auto sock = new Socket(AddressFamily.INET,SocketType.STREAM);
 
 	sock.connect(getAddress(HOST,PORT)[0]);
-	sock.send(format("PASS %s\r\n",PASS));
-	sock.send(format("NICK %s\r\n",NICK));
-	//request message tag information (see: https://github.com/justintv/Twitch-API/blob/master/IRC.md)
-	sock.send("CAP REQ :twitch.tv/tags\r\n");
-	sock.send(format("JOIN #%s\r\n",CHAN));
 
 	auto buffer = new char[2048];
 	buffer[0] = '\r';
 
-	//this loop catches the initial twitch irc responses about logging in successfully and entering the channel that aren't useful for the end user
-	while(buffer[1..21] != "dumj0p.tmi.twitch.tv")
+	//Attempt to login with the given username and oauth
+	sock.send(format("PASS %s\r\n",PASS));
+	sock.send(format("NICK %s\r\n",NICK));
+
+	//Check the login attempt response for failed authentication
+	sock.receive(buffer);
+	debug.writeln(buffer[0..countUntil(buffer,'\r')]);
+	
+	//if the username or oauth are incorrect
+	if(canFind(buffer,":Login authentication failed"))
 	{
-		sock.receive(buffer);
-
-		debug.writeln(buffer[0..countUntil(buffer,'\r')]);
-
-		//if the username or oauth are incorrect
-		if(canFind(buffer,"Login unsuccessful"))
-		{
-			stderr.writeln("ERROR: Login unsuccessful. Please doublecheck that all fields are filled correctly.");
-			goto init;
-		}
+		stderr.writeln("ERROR: Login unsuccessful. Please doublecheck that all fields are filled correctly.");
+		goto init;
 	}
+
+	//request message tag information (see: https://github.com/justintv/Twitch-API/blob/master/IRC.md)
+	sock.send("CAP REQ :twitch.tv/tags\r\n");
+
+	//join the given stream chat
+	sock.send(format("JOIN #%s\r\n",CHAN));
 
 	auto messageQueue = new shared SynchronizedQueue!string();
 	auto responseQueue = new shared SynchronizedQueue!string();
@@ -90,7 +91,6 @@ init:
 			case -1:
 				break;
 			default:
-
 				//if the new message was a server PING send a PONG
 				if(buffer[0..4] == "PING")
 				{
@@ -99,9 +99,7 @@ init:
 					debug.writeln("PONG (main)");
 				}
 				//else if the message was the bot admin's !exit command shut down the bot
-				else if(canFind(buffer,'!') && //canFind(buffer,' ') &&
-						buffer[(countUntil(buffer,':')+1)..countUntil(buffer,'!')] == OWNER &&
-						buffer[(countUntil(buffer,'\r')-5)..countUntil(buffer,'\r')] == "!exit")
+				else if(endsWith(buffer[0..countUntil(buffer,'\r')],format("PRIVMSG #%s :!exit",OWNER)))
 				{
 					return;
 				}
@@ -121,16 +119,26 @@ init:
 		{
 			//send the first response in the queue and update the time of the last message sent
 			//sock.send(responseQueue.dequeue());
-			debug.writeln(responseQueue.dequeue());
-			while(!(sock.send("PRIVMSG #dumj01 :This should send after every chat message OMGScoots\r\n") > 0))
-			{}
+			//debug.writeln(responseQueue.dequeue());
 			lastresponse = MonoTime.currTime();
 		}
 	}
 //label for when the bot is unexpectedly disconnected
 disconnected:
 	//before the program terminates, wait for the user to press enter (this could be adapted to add commands like reboot)
-	readln();
+	writeln("Oops! The bot has unexpectedly disconnected from the server. Would you like to restart? [Y/n]");
+	auto input = readln();
+	
+	while(input.length > 2 || (input[0] != 'y' && input[0] != 'Y' && input[0] != 'n' && input[0] != 'N'))
+	{
+		stderr.writeln("ERROR: Invalid input.");
+		writeln("The bot has unexpectedly disconnected from the server. Would you like to restart? [Y/n]");
+		input = readln();
+	}
+	if(input[0] == 'y' || input[0] == 'Y')
+	{
+		goto init;
+	}
 }
 
 void botInit()

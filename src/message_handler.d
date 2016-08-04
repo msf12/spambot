@@ -24,6 +24,7 @@ void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue,
 		prioritySend(owner,1);
 		log.close();
 		debug.writeln("messageHandler complete");
+		//throw new Exception("Message Handler has exited unexpectedly!");
 	}
 
 	//while the program is running
