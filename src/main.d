@@ -1,8 +1,17 @@
 module main;
 
-import message_handler, globals, memes, synchronizedQueue;
-import std.socket, std.stdio, std.format, std.algorithm, std.concurrency, std.file, std.json, std.string, std.math;
-import core.stdc.stdlib, core.time, core.thread;
+import message_handler, globals, memes, synchronizedQueue,
+std.socket,
+std.stdio,
+std.algorithm,
+std.concurrency,
+std.file,
+std.json,
+std.string,
+std.math,
+core.stdc.stdlib,
+core.time,
+core.thread;
 
 void main()
 {
@@ -119,7 +128,7 @@ init:
 		{
 			//send the first response in the queue and update the time of the last message sent
 			//sock.send(responseQueue.dequeue());
-			//debug.writeln(responseQueue.dequeue());
+			debug.writeln(responseQueue.dequeue());
 			lastresponse = MonoTime.currTime();
 		}
 	}
@@ -166,6 +175,11 @@ void botInit()
 	auto filecontents = readText("irc.conf");
 
 	JSONValue config = parseJSON(filecontents);
+	//foreach(string key, value; config)
+	//{
+		//writeln(key);
+		//writeln(value);
+	//}
 	OWNER = config["OWNER"].str();
 	NICK = config["NICK"].str();
 	PASS = config["PASS"].str();
@@ -319,7 +333,7 @@ init:
 void saveConfig(ref JSONValue config)
 {
 	//open the file for write (erases current data and overwrites it)
-	auto f = File("ircco.nf","w");
+	auto f = File("irc.conf","w");
 
 	//std.json doesn't format JSONValues to be human readable so take the values and add the newlines and brackets to either end before splitting the values on the comma delimiters
 	//this works because commas are illegal characters for all of the fields

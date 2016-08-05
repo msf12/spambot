@@ -1,8 +1,14 @@
 module message_handler;
 
-import globals, memes, synchronizedQueue;
-import std.stdio, std.utf, std.format, std.concurrency, std.algorithm;
-import core.time;
+import globals, memes, synchronizedQueue,
+std.stdio,
+std.utf,
+std.concurrency,
+std.algorithm,
+std.json,
+std.file,
+std.string,
+core.time;
 
 struct Message
 {
@@ -15,6 +21,9 @@ struct Message
 void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue, ref shared SynchronizedQueue!string responseQueue)
 {
 	auto log = File("log.txt","w");
+
+	auto filecontents = readText("blacklist.json");
+	JSONValue blacklist = parseJSON(filecontents);
 
 	//when messageHandler goes out of scope
 	scope(exit)
@@ -53,8 +62,11 @@ void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue,
 			{
 			    auto message = *messagePtr;
 			    //debug.writeln(format("(messageHandler) Message: \"%s\"\n\tUser: %s",message.text,message.user));
-			    auto response = chooseResponse(message);
-			    responseQueue.enqueue(formatOutgoingMessage(response));
+			    auto response = chooseResponse(message,blacklist);
+			    if(response != "")
+			    {
+				    responseQueue.enqueue(formatOutgoingMessage(response));
+			    }
 				log.writeln(format("(messageHandler) Message: \"%s\"\n\tUser: %s",message.text,message.user));
 			}
 		}
@@ -99,17 +111,26 @@ Message* stringToMessage(string rawmessage)
 	return newMessage;
 }
 
-string chooseResponse(ref Message message)
+string chooseResponse(ref Message message, ref JSONValue blacklist)
 {
 	if(message.text[0] == '!')
 	{
 		runCommand(message);
+		return "";
 	}
 	else
 	{
-
+		foreach(string phrase, action; blacklist)
+		{
+//TODO: make it potentially look for the exact words, not words that include them? Add syntax for that?
+			if(canFind(toLower(message.text), phrase))
+			{
+				return "Moderation action required";
+				//return action.str();
+			}
+		}
+		return format("Test response for %s who said %s",message.user,message.text);
 	}
-	return format("Test response for %s who said %s",message.user,message.text);
 }
 
 void runCommand(ref Message message)
