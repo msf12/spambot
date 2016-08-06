@@ -2,12 +2,12 @@ module message_handler;
 
 import globals, memes, synchronizedQueue,
 std.stdio,
-std.utf,
 std.concurrency,
 std.algorithm,
 std.json,
 std.file,
 std.string,
+std.regex,
 core.time;
 
 struct Message
@@ -113,6 +113,10 @@ Message* stringToMessage(string rawmessage)
 
 string chooseResponse(ref Message message, ref JSONValue blacklist)
 {
+	scope(failure)
+	{
+		writeln("Something broke");
+	}
 	if(message.text[0] == '!')
 	{
 		runCommand(message);
@@ -120,13 +124,45 @@ string chooseResponse(ref Message message, ref JSONValue blacklist)
 	}
 	else
 	{
+		//run through the blacklist to check if a message requires moderation and, if so, what action
 		foreach(string phrase, action; blacklist)
 		{
-//TODO: make it potentially look for the exact words, not words that include them? Add syntax for that?
-			if(canFind(toLower(message.text), phrase))
+			//get the first and last character of the blacklist element
+			char firstChar = phrase[0],
+			lastChar = phrase[$-1];
+			Regex!char blacklistedRegex;
+
+			//blacklist elements beginning and ending with * can appear anywhere in the message
+			//(ex. *hell* matches both hello and shell)
+			if(firstChar == '*' && lastChar == '*')
 			{
-				return "Moderation action required";
-				//return action.str();
+				blacklistedRegex = regex(phrase[1..($-1)]);
+			}
+			//blacklist elements beginning with * do not include words that start with the blacklist element
+			//(ex. *hell doesn't match hello but will match shell)
+			else if(firstChar == '*')
+			{
+				blacklistedRegex = regex(phrase[1..$] ~ r"(\W|$)");
+			}
+			//blacklist elements ending with * do not include words that end with the blacklist element 
+			//(ex. hell* does match hello but will not match shell)
+			else if(lastChar == '*')
+			{
+				blacklistedRegex = regex(r"(\W|^)" ~ phrase[0..($-1)]);
+			}
+			//blacklist elements with no * only moderate messages with the EXACT word
+			//(ex. hell does not match either hello or shell)
+			else
+			{
+				blacklistedRegex = regex(r"(\W|^)" ~ phrase ~ r"(\W|$)");
+			}
+
+			if(matchFirst(toLower(message.text), blacklistedRegex))
+			{
+				writeln("Moderation action required on message: " ~ message.text ~
+				"\nThe message has matched blacklist item: " ~ phrase ~ 
+				"\nThis requires action: " ~ action.str());
+				return action.str();
 			}
 		}
 		return format("Test response for %s who said %s",message.user,message.text);

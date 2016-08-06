@@ -1,8 +1,0 @@
-(messageHandler) Message: "test"
-	User: usernameop
-(messageHandler) Message: "test1"
-	User: usernameop
-(messageHandler) Message: "testickle"
-	User: usernameop
-(messageHandler) Message: "fuck"
-	User: usernameop

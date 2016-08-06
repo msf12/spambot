@@ -1,7 +1,12 @@
 module http_handler;
 
-import globals;
-import std.stdio, std.exception, std.file, std.net.curl, std.format, std.json;
+import globals,
+std.stdio,
+std.exception,
+std.file,
+std.net.curl,
+std.format,
+std.json;
 
 void httptest()
 {
