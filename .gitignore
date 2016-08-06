@@ -2,7 +2,7 @@
 spambot
 irc.*
 blacklist.*
-log*
+log.*
 
 # Compiled Object files
 *.o
