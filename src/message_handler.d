@@ -1,6 +1,6 @@
 module message_handler;
 
-import globals, memes, synchronizedQueue,
+import globals, memes, synchronizedQueue, spambot_util,
 std.stdio,
 std.concurrency,
 std.algorithm,
@@ -9,14 +9,6 @@ std.file,
 std.string,
 std.regex,
 core.time;
-
-struct Message
-{
-	string user;
-	string text;
-	string tags;
-	//string time;
-}
 
 void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue, ref shared SynchronizedQueue!string responseQueue)
 {
@@ -65,50 +57,12 @@ void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue,
 			    auto response = chooseResponse(message,blacklist);
 			    if(response != "")
 			    {
-				    responseQueue.enqueue(formatOutgoingMessage(response));
+				    responseQueue.enqueue(formatOutgoingMessage(CHAN,response));
 			    }
 				log.writeln(format("(messageHandler) Message: \"%s\"\n\tUser: %s",message.text,message.user));
 			}
 		}
 	}
-}
-
-Message* stringToMessage(string rawmessage)
-{
-	Message* newMessage;
-	//debug.writeln(format("String to message: %s",rawmessage));
-	if(canFind(rawmessage,"PRIVMSG"))
-	{
-		//all user messages start with a tag string that begins with @
-		if(rawmessage[0] == '@')
-		{
-			//countUntil returns the index of the space so the username is 2 indexes farther in
-			auto tagend = countUntil(rawmessage,' ')+2;
-			//new Message(username,message,tags)
-			newMessage = new Message(rawmessage[tagend..countUntil(rawmessage,'!')],
-									 //index of username + distance from there to the colon + 1 is where the message starts
-									 rawmessage[(tagend + countUntil(rawmessage[tagend..$],':') + 1)..$],
-									 //tagend includes an extraneous space and colon
-									 rawmessage[0..(tagend-2)]);
-			if(canFind(newMessage.text,'\x01'))
-			{
-				//messages that start with /me are formatted as \x01ACTION message\x01 where \x01 is a single unicode char
-				//thus starting at the ninth character starts where the actual message begins
-				newMessage.text = "/me " ~ newMessage.text[8..($-1)];
-			}
-		}
-		//else it's a twitchnotify system PRIVMSG
-		else
-		{
-			newMessage = new Message(rawmessage[(countUntil(rawmessage[1..$],':')+1)..$],
-									 rawmessage[0..countUntil(rawmessage,'!')]);
-		}
-	}
-	else
-	{
-		return null;
-	}
-	return newMessage;
 }
 
 string chooseResponse(ref Message message, ref JSONValue blacklist)
@@ -119,7 +73,7 @@ string chooseResponse(ref Message message, ref JSONValue blacklist)
 	}
 	if(message.text[0] == '!')
 	{
-		runCommand(message);
+		runCommand(message, blacklist);
 		return "";
 	}
 	else
@@ -169,13 +123,42 @@ string chooseResponse(ref Message message, ref JSONValue blacklist)
 	}
 }
 
-void runCommand(ref Message message)
+void runCommand(ref Message message, ref JSONValue blacklist)
 {
+	debug.writeln("Command received");
 
-}
+	//if the command is a single word there will be no space so check for a space before isolating the command string
+	auto commandEnd = canFind(message.text," ") ? countUntil(message.text," ") : message.text.length;
+	auto command = message.text[1..commandEnd];
 
-//formatOutgoingMessage takes a string message and returns the full irc message to be sent
-string formatOutgoingMessage(string message)
-{
-	return format("PRIVMSG #%s :%s\r\n",CHAN,message);
+	switch(command)
+	{
+		/**
+		 * !blacklist <command> <args>
+		 * add "term:command"     -> adds "term":"command" to the blacklist JSONValue
+		 * list "term"            -> lists all terms similar to "term" 
+		 * search "term"          -> searches for "term" and says whether or not it appears in blacklist
+		 * remove "term"          -> removes "term" from blacklist or sends error message if it doesn't exist
+		 */
+		case "blacklist":
+			//At the moment a valid blacklist command takes one subcommand and an argument
+			if(count(message.text," ") < 2)
+			{
+				stderr.writeln(format("ERROR: Malformed blacklist command \"%s\"",message.text));
+				return;
+			}
+			//countUntil counts from the beginning of the splice so commandEnd+1 must be manually added to the count
+			auto subcommandEnd = commandEnd + 1 + countUntil(message.text[commandEnd+1..$]," ");
+			auto commandType = message.text[(commandEnd+1)..subcommandEnd];
+			auto args = message.text[(subcommandEnd+1)..$];
+			debug.writeln("Command: \"blacklist\"\nCommand type: \"" ~ commandType ~ "\"\nArgs: \"" ~ args ~ "\"\n");
+
+			break;
+		
+		/**
+		 * 
+		 */
+
+		default:
+	}
 }

@@ -1,6 +1,6 @@
 module main;
 
-import message_handler, globals, memes, synchronizedQueue,
+import message_handler, globals, memes, synchronizedQueue, spambot_util,
 std.socket,
 std.stdio,
 std.algorithm,
@@ -74,7 +74,7 @@ init:
 				});
 		if(SHOW_SALUTATIONS)
 		{
-			sock.send(message_handler.formatOutgoingMessage(SHUTDOWN));
+			sock.send(formatOutgoingMessage(CHAN,SHUTDOWN));
 		}
 		sock.close();
 		debug.writeln("main complete");
@@ -83,7 +83,7 @@ init:
 	sock.blocking(false);
 	if(SHOW_SALUTATIONS)
 	{
-		sock.send(message_handler.formatOutgoingMessage(STARTUP));
+		sock.send(formatOutgoingMessage(CHAN,STARTUP));
 	}
 	auto lastresponse = MonoTime.currTime();
 
@@ -173,19 +173,15 @@ void botInit()
 	}
 
 	auto filecontents = readText("irc.conf");
-
+//TODO: replace global variables with global JSONValue config?
 	JSONValue config = parseJSON(filecontents);
-	//foreach(string key, value; config)
-	//{
-		//writeln(key);
-		//writeln(value);
-	//}
 	OWNER = config["OWNER"].str();
 	NICK = config["NICK"].str();
 	PASS = config["PASS"].str();
 	CHAN = config["CHAN"].str();
 	STARTUP = config["SALUTATIONS"]["STARTUP"].str();
 	SHUTDOWN = config["SALUTATIONS"]["SHUTDOWN"].str();
+
 	if(config["SHOW_OPTIONS"].type() == JSON_TYPE.TRUE)
 	{
 		SHOW_OPTIONS = true;
@@ -313,7 +309,7 @@ init:
 				config["PASS"] = PASS = tempPASS;
 				config["CHAN"] = CHAN = tempCHAN;
 				config["SHOW_OPTIONS"] = SHOW_OPTIONS;
-				saveConfig(config);
+				saveJSON(config,"irc.conf");
 				goto init;
 
 			//5. Cancel changes and return
@@ -326,20 +322,4 @@ init:
 				exit(1);
 		}
 	}
-
-}
-
-//save configuration changes to ircco.nf
-void saveConfig(ref JSONValue config)
-{
-	//open the file for write (erases current data and overwrites it)
-	auto f = File("irc.conf","w");
-
-	//std.json doesn't format JSONValues to be human readable so take the values and add the newlines and brackets to either end before splitting the values on the comma delimiters
-	//this works because commas are illegal characters for all of the fields
-	auto json = splitter("{\n\t" ~ config.toString()[1..($-1)] ~ "\n}",",");
-	//then join the strings back together with ",\n\t" between them
-	f.write(json.join(",\n\t"));
-
-	f.close();
 }
