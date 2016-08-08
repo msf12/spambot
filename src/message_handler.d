@@ -14,7 +14,20 @@ void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue,
 {
 	auto log = File("log.txt","w");
 
-	auto filecontents = readText("blacklist.json");
+	string filecontents;
+	foreach(string line;lines(File("blacklist.json","r")))
+	{
+		if(!canFind(line,"null"))
+		{
+			filecontents~=line;
+		}
+	}
+	//ensure the last three characters are NOT ",\n}"
+	if(filecontents[$-3] == ',')
+	{
+		filecontents = filecontents[0..($-3)] ~ filecontents[($-2)..$];
+	}
+	writeln(filecontents);
 	JSONValue blacklist = parseJSON(filecontents);
 
 	//when messageHandler goes out of scope
@@ -24,8 +37,8 @@ void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue,
 		//send a priority message to the parent thread signaling the messageHandler is exiting
 		prioritySend(owner,1);
 		log.close();
+		saveJSON(blacklist,"blacklist.json");
 		debug.writeln("messageHandler complete");
-		//throw new Exception("Message Handler has exited unexpectedly!");
 	}
 
 	//while the program is running
@@ -81,6 +94,10 @@ string chooseResponse(ref Message message, ref JSONValue blacklist)
 		//run through the blacklist to check if a message requires moderation and, if so, what action
 		foreach(string phrase, action; blacklist)
 		{
+			if(action.type() == JSON_TYPE.NULL)
+			{
+				continue;
+			}
 			//get the first and last character of the blacklist element
 			char firstChar = phrase[0],
 			lastChar = phrase[$-1];
@@ -115,14 +132,15 @@ string chooseResponse(ref Message message, ref JSONValue blacklist)
 			{
 				writeln("Moderation action required on message: " ~ message.text ~
 				"\nThe message has matched blacklist item: " ~ phrase ~ 
-				"\nThis requires action: " ~ action.str());
-				return action.str();
+				"\nThis requires action: " ~ format(action.str(),message.user));
+				return format(action.str(),message.user);
 			}
 		}
 		return format("Test response for %s who said %s",message.user,message.text);
 	}
 }
 
+//TODO: return Message* response or a null reference if the command requires no response 
 void runCommand(ref Message message, ref JSONValue blacklist)
 {
 	debug.writeln("Command received");
@@ -148,10 +166,45 @@ void runCommand(ref Message message, ref JSONValue blacklist)
 				return;
 			}
 			//countUntil counts from the beginning of the splice so commandEnd+1 must be manually added to the count
-			auto subcommandEnd = commandEnd + 1 + countUntil(message.text[commandEnd+1..$]," ");
-			auto commandType = message.text[(commandEnd+1)..subcommandEnd];
-			auto args = message.text[(subcommandEnd+1)..$];
-			debug.writeln("Command: \"blacklist\"\nCommand type: \"" ~ commandType ~ "\"\nArgs: \"" ~ args ~ "\"\n");
+			auto subCommandEnd = commandEnd + 1 + countUntil(message.text[commandEnd+1..$]," ");
+			auto subCommand = message.text[(commandEnd+1)..subCommandEnd];
+			auto args = message.text[(subCommandEnd+1)..$];
+			debug.writeln("Command: \"blacklist\"\nCommand type: \"" ~ subCommand ~ "\"\nArgs: \"" ~ args ~ "\"\n");
+
+			if(args[0] != '"' || args[$-1] != '"')
+			{
+				stderr.writeln("ERROR: Invalid blacklist argument \"" ~ args ~ "\"");
+				return;
+			}
+			args = args[1..($-1)];
+
+			switch(subCommand)
+			{
+				case "add":
+					if(!canFind(args,":"))
+					{
+						stderr.writeln("ERROR: Invalid blacklist add argument - invalid argument syntax " ~ args);
+						return;
+					}
+					auto argsSplit = countUntil(args,":");
+					blacklist[args[0..argsSplit]] = args[(argsSplit+1)..$];
+					break;
+				case "list":
+					break;
+				case "search":
+					break;
+				case "remove":
+					if(!(args in blacklist))
+					{
+						stderr.writeln("ERROR: Invalid blacklist remove argument - argument not found " ~ args);
+						return;
+					}
+					blacklist[args] = null;
+					break;
+				default:
+					stderr.writeln("ERROR: Invalid blacklist subcommand \"" ~ subCommand ~ "\"");
+					return;
+			}
 
 			break;
 		
@@ -160,5 +213,6 @@ void runCommand(ref Message message, ref JSONValue blacklist)
 		 */
 
 		default:
+			stderr.writeln("ERROR: Invalid command string \"" ~ command ~ "\"");
 	}
 }

@@ -13,6 +13,8 @@ core.stdc.stdlib,
 core.time,
 core.thread;
 
+//TODO: implement notification message list and notification timing variable
+
 void main()
 {
 //label to return to if the configuration is invalid
@@ -21,7 +23,6 @@ init:
 	botInit();
 	//httptest();
 
-	//auto addr = getAddress(HOST,PORT)[0];
 	auto sock = new Socket(AddressFamily.INET,SocketType.STREAM);
 
 	sock.connect(getAddress(HOST,PORT)[0]);
@@ -53,15 +54,15 @@ init:
 	auto messageQueue = new shared SynchronizedQueue!string();
 	auto responseQueue = new shared SynchronizedQueue!string();
 
-	auto messenger = spawnLinked(&messageHandler,thisTid,messageQueue,responseQueue);
+	auto messengeHandler = spawnLinked(&messageHandler,thisTid,messageQueue,responseQueue);
 
 	//when main goes out of scope
 	scope(exit)
 	{
 		debug.writeln("main exiting scope");
-		debug.writeln("sending exit message to messenger");
-		//pass a priority message to the messenger telling it to shutdown
-		prioritySend(messenger,1);
+		debug.writeln("sending exit message to messengeHandler");
+		//pass a priority message to the messengeHandler telling it to shutdown
+		prioritySend(messengeHandler,1);
 		//wait for a response signaling the child thread has terminated before shutting down
 		receive(
 				(int message)
@@ -318,7 +319,7 @@ init:
 
 			//seriously, if the code ever ends up here, I don't even know what could have gone wrong
 			default:
-				stderr.writeln("Error: If you are seeing this something has gone very wrong");
+				stderr.writeln("ERROR: If you are seeing this something has gone very wrong");
 				exit(1);
 		}
 	}
