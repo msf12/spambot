@@ -1,6 +1,6 @@
 module main;
 
-import message_handler, globals, memes, synchronizedQueue, spambot_util,
+import message_handler, globals, memes, synchronizedQueue, spambot_util, http_handler,
 std.socket,
 std.stdio,
 std.algorithm,
@@ -21,7 +21,7 @@ void main()
 init:
 	//version(none)
 	botInit();
-	//httptest();
+	httptest();
 
 	auto sock = new Socket(AddressFamily.INET,SocketType.STREAM);
 
@@ -101,6 +101,7 @@ init:
 			case -1:
 				break;
 			default:
+				debug.writeln(buffer[0..countUntil(buffer,'\r')] ~ "\n\n");
 				//if the new message was a server PING send a PONG
 				if(buffer[0..4] == "PING")
 				{
@@ -109,7 +110,7 @@ init:
 					debug.writeln("PONG (main)");
 				}
 				//else if the message was the bot admin's !exit command shut down the bot
-				else if(endsWith(buffer[0..countUntil(buffer,'\r')],format("PRIVMSG #%s :!exit",OWNER)))
+				else if(endsWith(buffer[0..countUntil(buffer,'\r')],format("%s.tmi.twitch.tv PRIVMSG #%s :!exit",OWNER,CHAN)))
 				{
 					return;
 				}
@@ -129,7 +130,7 @@ init:
 		{
 			//send the first response in the queue and update the time of the last message sent
 			//sock.send(responseQueue.dequeue());
-			debug.writeln(responseQueue.dequeue());
+			//debug.writeln(responseQueue.dequeue());
 			lastresponse = MonoTime.currTime();
 		}
 	}

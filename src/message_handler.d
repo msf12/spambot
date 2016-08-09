@@ -27,7 +27,7 @@ void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue,
 	{
 		filecontents = filecontents[0..($-3)] ~ filecontents[($-2)..$];
 	}
-	writeln(filecontents);
+
 	JSONValue blacklist = parseJSON(filecontents);
 
 	//when messageHandler goes out of scope
@@ -68,7 +68,7 @@ void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue,
 			    auto message = *messagePtr;
 			    //debug.writeln(format("(messageHandler) Message: \"%s\"\n\tUser: %s",message.text,message.user));
 			    auto response = chooseResponse(message,blacklist);
-			    if(response != "")
+			    if(response != null)
 			    {
 				    responseQueue.enqueue(formatOutgoingMessage(CHAN,response));
 			    }
@@ -86,8 +86,8 @@ string chooseResponse(ref Message message, ref JSONValue blacklist)
 	}
 	if(message.text[0] == '!')
 	{
-		runCommand(message, blacklist);
-		return "";
+		auto response = runCommand(message, blacklist);
+		return response;
 	}
 	else
 	{
@@ -140,8 +140,8 @@ string chooseResponse(ref Message message, ref JSONValue blacklist)
 	}
 }
 
-//TODO: return Message* response or a null reference if the command requires no response 
-void runCommand(ref Message message, ref JSONValue blacklist)
+//TODO: return string response or null if the command requires no response 
+string runCommand(ref Message message, ref JSONValue blacklist)
 {
 	debug.writeln("Command received");
 
@@ -163,7 +163,7 @@ void runCommand(ref Message message, ref JSONValue blacklist)
 			if(count(message.text," ") < 2)
 			{
 				stderr.writeln(format("ERROR: Malformed blacklist command \"%s\"",message.text));
-				return;
+				return null;
 			}
 			//countUntil counts from the beginning of the splice so commandEnd+1 must be manually added to the count
 			auto subCommandEnd = commandEnd + 1 + countUntil(message.text[commandEnd+1..$]," ");
@@ -174,7 +174,7 @@ void runCommand(ref Message message, ref JSONValue blacklist)
 			if(args[0] != '"' || args[$-1] != '"')
 			{
 				stderr.writeln("ERROR: Invalid blacklist argument \"" ~ args ~ "\"");
-				return;
+				return null;
 			}
 			args = args[1..($-1)];
 
@@ -184,11 +184,12 @@ void runCommand(ref Message message, ref JSONValue blacklist)
 					if(!canFind(args,":"))
 					{
 						stderr.writeln("ERROR: Invalid blacklist add argument - invalid argument syntax " ~ args);
-						return;
+						return null;
 					}
 					auto argsSplit = countUntil(args,":");
 					blacklist[args[0..argsSplit]] = args[(argsSplit+1)..$];
-					break;
+					return "\"" ~ args[0..argsSplit] ~ "\" added to blacklist";
+//TODO: list and search to be implemented later
 				case "list":
 					break;
 				case "search":
@@ -197,13 +198,13 @@ void runCommand(ref Message message, ref JSONValue blacklist)
 					if(!(args in blacklist))
 					{
 						stderr.writeln("ERROR: Invalid blacklist remove argument - argument not found " ~ args);
-						return;
+						return null;
 					}
 					blacklist[args] = null;
-					break;
+					return "\"" ~ args ~ "\" removed from blacklist";
 				default:
 					stderr.writeln("ERROR: Invalid blacklist subcommand \"" ~ subCommand ~ "\"");
-					return;
+					return null;
 			}
 
 			break;
@@ -215,4 +216,5 @@ void runCommand(ref Message message, ref JSONValue blacklist)
 		default:
 			stderr.writeln("ERROR: Invalid command string \"" ~ command ~ "\"");
 	}
+	return null;
 }
