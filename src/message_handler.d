@@ -1,6 +1,6 @@
 module message_handler;
 
-import globals, memes, synchronizedQueue, spambot_util,
+import globals, synchronizedQueue, spambot_util, http_handler,
 std.stdio,
 std.concurrency,
 std.algorithm,
@@ -13,8 +13,14 @@ core.time;
 void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue, ref shared SynchronizedQueue!string responseQueue)
 {
 	auto log = File("log.txt","w");
-
 	string filecontents;
+	//track the last time followers were checked as the API updates once every minute or so
+	auto lastFollowerCheck = MonoTime.currTime();
+	//get the follower list when the bot starts
+	auto followers = getFollowers();
+	debug.writeln("Current followers: " ~ followers);
+	//httptest();
+
 	foreach(string line;lines(File("blacklist.json","r")))
 	{
 		if(!canFind(line,"null"))
@@ -74,6 +80,27 @@ void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue,
 			    }
 				log.writeln(format("(messageHandler) Message: \"%s\"\n\tUser: %s",message.text,message.user));
 			}
+		}
+
+		//if enough time has passed that the API may have updated the follower list
+		if((MonoTime.currTime() - lastFollowerCheck).total!"seconds" > 60)
+		{
+			//create a sorted range from the follower list
+			auto sortedFollowers = sort(followers);
+
+			//find the set difference between the current follower list and the previous one
+			//the remaining strings are the usernames of new followers
+			auto newFollowers = setDifference(sort(getFollowers()),followers);
+
+			//iterate through the SetDifference and shoutout the new followers!
+//TODO: format shoutout string to shout them all out at once
+			foreach(newFollower; newFollowers)
+			{
+				writeln(formatOutgoingMessage(CHAN,"New follower: " ~ newFollower));
+				responseQueue.enqueue(formatOutgoingMessage(CHAN,"New follower: " ~ newFollower));
+				followers ~= newFollower;
+			}
+			lastFollowerCheck = MonoTime.currTime();
 		}
 	}
 }
@@ -140,7 +167,6 @@ string chooseResponse(ref Message message, ref JSONValue blacklist)
 	}
 }
 
-//TODO: return string response or null if the command requires no response 
 string runCommand(ref Message message, ref JSONValue blacklist)
 {
 	debug.writeln("Command received");

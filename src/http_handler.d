@@ -17,13 +17,26 @@ void httptest()
 	{
 		JSONValue viewers = parseJSON(getChatList());
 		writeln(viewers["chatters"]);
-		JSONValue followers = parseJSON(sendAPIRequest(format("channels/%s/follows",CHAN)));
-		writeln(followers);
 	}
 	catch(Exception e)
 	{
 		writeln("ERROR: Is Twitch down right now?");
 	}
+}
+
+string[] getFollowers()
+{
+	//Get the follows object from twitch
+	JSONValue followerJSONArray = parseJSON(sendAPIRequest(format("channels/%s/follows",CHAN)));
+	//Isolate the JSON follows array and convert it to a D array
+	JSONValue[] followers = followerJSONArray["follows"].array();
+	//extract only the username strings and return them
+	string[] followerStrings = new string[followers.length];
+	foreach(int i,follower; followers)
+	{
+		followerStrings[i] = follower["display_name"].str();
+	}
+	return followerStrings;
 }
 
 char[] getChatList()

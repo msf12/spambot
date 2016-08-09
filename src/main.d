@@ -1,6 +1,6 @@
 module main;
 
-import message_handler, globals, memes, synchronizedQueue, spambot_util, http_handler,
+import message_handler, globals, synchronizedQueue, spambot_util,
 std.socket,
 std.stdio,
 std.algorithm,
@@ -21,7 +21,6 @@ void main()
 init:
 	//version(none)
 	botInit();
-	httptest();
 
 	auto sock = new Socket(AddressFamily.INET,SocketType.STREAM);
 
@@ -36,7 +35,7 @@ init:
 
 	//Check the login attempt response for failed authentication
 	sock.receive(buffer);
-	debug.writeln(buffer[0..countUntil(buffer,'\r')]);
+	//debug.writeln(buffer[0..countUntil(buffer,'\r')]);
 	
 	//if the username or oauth are incorrect
 	if(canFind(buffer,":Login authentication failed"))
