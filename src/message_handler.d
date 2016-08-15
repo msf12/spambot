@@ -1,6 +1,6 @@
 module message_handler;
 
-import globals, synchronizedQueue, spambot_util, http_handler,
+import globals, synchronizedQueue, spambot_util, http_handler, trie,
 std.stdio,
 std.concurrency,
 std.algorithm,
@@ -8,18 +8,35 @@ std.json,
 std.file,
 std.string,
 std.regex,
+std.container,
 core.time;
 
 void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue, ref shared SynchronizedQueue!string responseQueue)
 {
+	scope(failure)
+	{
+		writeln("Message handler thread has crashed");
+	}
+
 	auto log = File("log.txt","w");
 	string filecontents;
+
+
+//TODO: store the followers to a file. spawn a thread on launch to check the loaded file against the twitch API
+	//get the follower list when the bot starts
+	auto followers = new Trie();
+	foreach(follower; getFollowers())
+	{
+		followers.add(follower);
+	}
+
 	//track the last time followers were checked as the API updates once every minute or so
 	auto lastFollowerCheck = MonoTime.currTime();
-	//get the follower list when the bot starts
-	auto followers = getFollowers();
-	debug.writeln("Current followers: " ~ followers);
-	//httptest();
+	auto lastFollowerMessage = MonoTime.currTime();
+	
+	DList!string newFollowerShoutouts;
+	
+	debug.writeln("Current followers: " ~ followers.toString());
 
 	foreach(string line;lines(File("blacklist.json","r")))
 	{
@@ -28,8 +45,9 @@ void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue,
 			filecontents~=line;
 		}
 	}
+
 	//ensure the last three characters are NOT ",\n}"
-	if(filecontents[$-3] == ',')
+	if(filecontents.length > 4 && filecontents[$-3] == ',')
 	{
 		filecontents = filecontents[0..($-3)] ~ filecontents[($-2)..$];
 	}
@@ -37,7 +55,7 @@ void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue,
 	JSONValue blacklist = parseJSON(filecontents);
 
 	//when messageHandler goes out of scope
-	scope(exit)
+	scope(success)
 	{
 		debug.writeln("messageHandler exiting scope");
 		//send a priority message to the parent thread signaling the messageHandler is exiting
@@ -46,7 +64,6 @@ void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue,
 		saveJSON(blacklist,"blacklist.json");
 		debug.writeln("messageHandler complete");
 	}
-
 	//while the program is running
 	while(true)
 	{
@@ -72,7 +89,7 @@ void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue,
 			if(messagePtr != null)
 			{
 			    auto message = *messagePtr;
-			    //debug.writeln(format("(messageHandler) Message: \"%s\"\n\tUser: %s",message.text,message.user));
+			    debug.writeln(format("(messageHandler) Message: \"%s\"\n\tUser: %s",message.text,message.user));
 			    auto response = chooseResponse(message,blacklist);
 			    if(response != null)
 			    {
@@ -85,22 +102,24 @@ void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue,
 		//if enough time has passed that the API may have updated the follower list
 		if((MonoTime.currTime() - lastFollowerCheck).total!"seconds" > 60)
 		{
-			//create a sorted range from the follower list
-			auto sortedFollowers = sort(followers);
+			auto newFollowers = getNewFollowers(followers);
 
-			//find the set difference between the current follower list and the previous one
-			//the remaining strings are the usernames of new followers
-			auto newFollowers = setDifference(sort(getFollowers()),followers);
-
-			//iterate through the SetDifference and shoutout the new followers!
-//TODO: format shoutout string to shout them all out at once
+			//iterate through the new followers and queue the shoutouts to be added to responseQueue
 			foreach(newFollower; newFollowers)
 			{
-				writeln(formatOutgoingMessage(CHAN,"New follower: " ~ newFollower));
-				responseQueue.enqueue(formatOutgoingMessage(CHAN,"New follower: " ~ newFollower));
-				followers ~= newFollower;
+				newFollowerShoutouts.insertBack(formatOutgoingMessage(CHAN,"Thank you so much for following, " ~ newFollower));
+				//add the new follower to the trie
+				followers.add(newFollower);
 			}
 			lastFollowerCheck = MonoTime.currTime();
+		}
+
+		//if there are new followers to shoutout and 15 seconds have passed since the last shoutout enqueue the shoutout message
+		if(!newFollowerShoutouts.empty() &&
+			(MonoTime.currTime() - lastFollowerMessage).total!"seconds" > 15)
+		{
+			responseQueue.enqueue(newFollowerShoutouts.back());
+			newFollowerShoutouts.removeBack();
 		}
 	}
 }
@@ -109,7 +128,7 @@ string chooseResponse(ref Message message, ref JSONValue blacklist)
 {
 	scope(failure)
 	{
-		writeln("Something broke");
+		writeln("chooseResponse(" ~ message.text ~ ", " ~ blacklist.toString() ~ ") failed");
 	}
 	if(message.text[0] == '!')
 	{
@@ -163,7 +182,7 @@ string chooseResponse(ref Message message, ref JSONValue blacklist)
 				return format(action.str(),message.user);
 			}
 		}
-		return format("Test response for %s who said %s",message.user,message.text);
+		return null;//format("Test response for %s who said %s",message.user,message.text);
 	}
 }
 

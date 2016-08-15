@@ -1,8 +1,13 @@
 {
 	"fileVersion": 1,
 	"versions": {
-		"dini": "1.0.1",
+		"libevent": "2.0.1+2.0.16",
 		"pegged": "~master",
-		"ctini": "0.2.1"
+		"requests": "0.2.1",
+		"openssl": "1.1.4+1.0.1g",
+		"memutils": "0.4.6",
+		"vibe-d": "0.7.29",
+		"ctini": "0.2.1",
+		"libasync": "0.7.9"
 	}
 }

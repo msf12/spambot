@@ -128,8 +128,8 @@ init:
 		   (MonoTime.currTime() - lastresponse).total!"seconds" > 0.7)
 		{
 			//send the first response in the queue and update the time of the last message sent
-			//sock.send(responseQueue.dequeue());
-			//debug.writeln(responseQueue.dequeue());
+			sock.send(responseQueue.dequeue());
+			debug.writeln(responseQueue.dequeue());
 			lastresponse = MonoTime.currTime();
 		}
 	}
