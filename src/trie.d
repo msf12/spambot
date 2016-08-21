@@ -20,6 +20,7 @@ class Trie
 	~this()
 	{
 		deleteNode(root);
+		root = null;
 	}
 
 	private void deleteNode(ref Node node)
@@ -59,7 +60,7 @@ class Trie
 			{
 				//return true if the child was not a valid string already
 				if(!((*currentNode)[currentChar].isValidString))
-				{
+				{		
 					return (*currentNode)[currentChar].isValidString = true;
 				}
 				//return false if it was a valid string

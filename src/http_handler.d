@@ -8,6 +8,7 @@ std.file,
 std.net.curl,
 std.format,
 std.json,
+std.conv,
 std.datetime;
 import requests;
 
@@ -59,10 +60,10 @@ string[] getFollowers()
 	auto followerCount = followerJSONArray["_total"].integer();
 
 	//Initialize a string[] to return the usernames of all followers
-	string[] followerStrings = new string[followerJSONArray["_total"].integer()];
+	string[] followerStrings = new string[followerCount];
 	JSONValue[] followerArray;
 
-	for(int i = 0; i < followerCount; i += 100)
+	for(int i = 0;; i += 100)
 	{
 		//Isolate the JSON follows array and convert it to a D array
 		write("Loop: ");
@@ -70,6 +71,10 @@ string[] getFollowers()
 		write("Time: ");
 		writeln(sw.peek().msecs());
 		followerArray = followerJSONArray["follows"].array();
+		if(followerArray.length == 0)
+		{
+			break;
+		}
 
 		foreach(int j,follower; followerArray)
 		{
@@ -86,11 +91,14 @@ string[] getFollowers()
 }
 
 
-//TODO: this will break if the streamer has 0 followers
 string[] getNewFollowers(ref Trie followers)
 {
 	//get the first page of followers
 	JSONValue followerJSONArray = parseJSON(sendAPIRequest(format("channels/%s/follows",CHAN),"&limit=100"));
+	if(followerJSONArray["_total"].integer() == 0)
+	{
+		return null;	
+	}
 	string[] newFollowers = null;
 	JSONValue[] followerArray;
 
@@ -114,7 +122,8 @@ string[] getNewFollowers(ref Trie followers)
 			}
 		}
 		followerJSONArray = parseJSON(sendAPIRequest(format("channels/%s/follows",CHAN),
-			"&limit=100&cursor=" ~ followerJSONArray["_cursor"].str()));
+			"&limit=100&cursor=" ~ followerJSONArray["_cursor"].str() ~
+			"nocache=" ~ to!string(Clock.currTime().stdTime())));
 	}
 }
 

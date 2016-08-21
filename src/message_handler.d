@@ -21,14 +21,12 @@ void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue,
 	auto log = File("log.txt","w");
 	string filecontents;
 
-
-//TODO: store the followers to a file. spawn a thread on launch to check the loaded file against the twitch API
-	//get the follower list when the bot starts
+	//construct a trie of current followers on startup
 	auto followers = new Trie();
 	foreach(follower; getFollowers())
 	{
 		followers.add(follower);
-	}
+	}	
 
 	//track the last time followers were checked as the API updates once every minute or so
 	auto lastFollowerCheck = MonoTime.currTime();
@@ -99,7 +97,7 @@ void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue,
 			}
 		}
 
-		//if enough time has passed that the API may have updated the follower list
+		//if enough time has passed that the API may have updated, update the follower list
 		if((MonoTime.currTime() - lastFollowerCheck).total!"seconds" > 60)
 		{
 			auto newFollowers = getNewFollowers(followers);
