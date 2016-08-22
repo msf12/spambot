@@ -47,7 +47,7 @@ void httptest()
 	//}
 }
 
-string[] getFollowers()
+void getFollowers(ref Trie followers)
 {
 	StopWatch sw;
 	sw.start();
@@ -57,28 +57,21 @@ string[] getFollowers()
 	JSONValue followerJSONArray = parseJSON(sendAPIRequest(format("channels/%s/follows",CHAN),"&limit=100"));
 	write("First API request: ");
 	writeln(sw.peek().msecs());
-	auto followerCount = followerJSONArray["_total"].integer();
 
-	//Initialize a string[] to return the usernames of all followers
-	string[] followerStrings = new string[followerCount];
-	JSONValue[] followerArray;
-
-	for(int i = 0;; i += 100)
+	for(JSONValue[] followerArray = followerJSONArray["follows"].array();
+		followerArray.length != 0;
+		followerArray = followerJSONArray["follows"].array())
 	{
 		//Isolate the JSON follows array and convert it to a D array
-		write("Loop: ");
-		writeln(i/100);
-		write("Time: ");
+		write("Loop Time: ");
 		writeln(sw.peek().msecs());
-		followerArray = followerJSONArray["follows"].array();
-		if(followerArray.length == 0)
-		{
-			break;
-		}
 
-		foreach(int j,follower; followerArray)
+		foreach(follower; followerArray)
 		{
-			followerStrings[i+j] = follower["user"]["display_name"].str();
+			if(follower["user"]["display_name"].str() != "")
+			{
+				followers.add(follower["user"]["display_name"].str());
+			}
 		}
 		followerJSONArray = parseJSON(sendAPIRequest(format("channels/%s/follows",CHAN),
 			"&limit=100&cursor=" ~ followerJSONArray["_cursor"].str()));
@@ -86,8 +79,6 @@ string[] getFollowers()
 	sw.stop();
 	write("End: ");
 	writeln(sw.peek().msecs());
-
-	return followerStrings;
 }
 
 
@@ -112,6 +103,7 @@ string[] getNewFollowers(ref Trie followers)
 		//if it fails the search has reached the end of the new followers and should return
 		foreach(int i,follower; followerArray)
 		{
+			debug.writeln("(getNewFollowers) Follower: " ~ follower["user"]["display_name"].str() ~ "Clock: " ~ to!string(Clock.currTime().stdTime()));
 			if(!followers.add(follower["user"]["display_name"].str()))
 			{
 				return newFollowers;
@@ -123,7 +115,7 @@ string[] getNewFollowers(ref Trie followers)
 		}
 		followerJSONArray = parseJSON(sendAPIRequest(format("channels/%s/follows",CHAN),
 			"&limit=100&cursor=" ~ followerJSONArray["_cursor"].str() ~
-			"nocache=" ~ to!string(Clock.currTime().stdTime())));
+			"noCache=" ~ to!string(Clock.currTime().stdTime())));
 	}
 }
 

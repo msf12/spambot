@@ -23,10 +23,7 @@ void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue,
 
 	//construct a trie of current followers on startup
 	auto followers = new Trie();
-	foreach(follower; getFollowers())
-	{
-		followers.add(follower);
-	}	
+	getFollowers(followers);
 
 	//track the last time followers were checked as the API updates once every minute or so
 	auto lastFollowerCheck = MonoTime.currTime();
@@ -87,20 +84,22 @@ void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue,
 			if(messagePtr != null)
 			{
 			    auto message = *messagePtr;
-			    debug.writeln(format("(messageHandler) Message: \"%s\"\n\tUser: %s",message.text,message.user));
+			    debug.writeln(format("(messageHandler) Message: \"%s\"\n\tUser: %s\n",message.text,message.user));
 			    auto response = chooseResponse(message,blacklist);
 			    if(response != null)
 			    {
 				    responseQueue.enqueue(formatOutgoingMessage(CHAN,response));
 			    }
-				log.writeln(format("(messageHandler) Message: \"%s\"\n\tUser: %s",message.text,message.user));
+				log.writeln(format("(messageHandler) Message: \"%s\"\n\tUser: %s\n",message.text,message.user));
 			}
 		}
 
 		//if enough time has passed that the API may have updated, update the follower list
-		if((MonoTime.currTime() - lastFollowerCheck).total!"seconds" > 60)
+		if((MonoTime.currTime() - lastFollowerCheck).total!"seconds" > 30)
 		{
 			auto newFollowers = getNewFollowers(followers);
+			debug.write("New follower list: ");
+			debug.writeln(newFollowers);
 
 			//iterate through the new followers and queue the shoutouts to be added to responseQueue
 			foreach(newFollower; newFollowers)
@@ -116,8 +115,12 @@ void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue,
 		if(!newFollowerShoutouts.empty() &&
 			(MonoTime.currTime() - lastFollowerMessage).total!"seconds" > 15)
 		{
+			debug.write("Time since last shoutout: ");
+			debug.writeln((MonoTime.currTime() - lastFollowerMessage).total!"seconds");
+			debug.writeln("Next shoutout: " ~ newFollowerShoutouts.back());
 			responseQueue.enqueue(newFollowerShoutouts.back());
 			newFollowerShoutouts.removeBack();
+			lastFollowerMessage = MonoTime.currTime();
 		}
 	}
 }

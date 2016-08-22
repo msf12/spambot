@@ -100,7 +100,7 @@ init:
 			case -1:
 				break;
 			default:
-				debug.writeln(buffer[0..countUntil(buffer,'\r')] ~ "\n\n");
+				//debug.writeln(buffer[0..countUntil(buffer,'\r')] ~ "\n\n");
 				//if the new message was a server PING send a PONG
 				if(buffer[0..4] == "PING")
 				{
