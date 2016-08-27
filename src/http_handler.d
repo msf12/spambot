@@ -82,6 +82,10 @@ void getFollowers(ref Trie followers)
 }
 
 
+//TODO: getNewFollowers doesn't work quite right
+//if the first in the list is old and is followed by new it would fail
+//the current fix is to go through the first 100 and add new ones
+//this is a hack and should be addressed
 string[] getNewFollowers(ref Trie followers)
 {
 	//get the first page of followers
@@ -93,8 +97,8 @@ string[] getNewFollowers(ref Trie followers)
 	string[] newFollowers = null;
 	JSONValue[] followerArray;
 
-	while(true)
-	{
+	//while(true)
+	//{
 		//create the array of follower JSON objects from the API response
 		followerArray = followerJSONArray["follows"].array();
 
@@ -103,20 +107,22 @@ string[] getNewFollowers(ref Trie followers)
 		//if it fails the search has reached the end of the new followers and should return
 		foreach(int i,follower; followerArray)
 		{
-			debug.writeln("(getNewFollowers) Follower: " ~ follower["user"]["display_name"].str() ~ "Clock: " ~ to!string(Clock.currTime().stdTime()));
+			//debug.writeln("(getNewFollowers) Follower: " ~ follower["user"]["display_name"].str() ~ "Clock: " ~ to!string(Clock.currTime().stdTime()));
 			if(!followers.add(follower["user"]["display_name"].str()))
 			{
-				return newFollowers;
+				//return newFollowers;
 			}
 			else
 			{
 				newFollowers ~= follower["user"]["display_name"].str();
 			}
 		}
-		followerJSONArray = parseJSON(sendAPIRequest(format("channels/%s/follows",CHAN),
-			"&limit=100&cursor=" ~ followerJSONArray["_cursor"].str() ~
-			"noCache=" ~ to!string(Clock.currTime().stdTime())));
-	}
+		//followerJSONArray = parseJSON(sendAPIRequest(format("channels/%s/follows",CHAN),
+			//"limit=100&cursor=" ~ followerJSONArray["_cursor"].str() ~ "&" ~
+			//"noCache=" ~ to!string(Clock.currTime().stdTime()), false));
+	//}
+
+	return newFollowers;
 }
 
 char[] getChatList()
@@ -131,12 +137,21 @@ char[] getChatList()
  * args - string of additional query parameters in the form "&param1&param..."
  * @type {immutable string}
  */
-Buffer!ubyte sendAPIRequest(immutable string endpoint, immutable string args = "")
+Buffer!ubyte sendAPIRequest(immutable string endpoint, immutable string args = "", immutable bool useOauth = true)
 {
 	static auto rq = Request();
 	scope(failure)
 	{
 		writeln("get(" ~ format("https://api.twitch.tv/kraken/%s?oauth_token=%s%s",endpoint,PASS[6..$],args) ~ ") failed");
 	}
-	return rq.get(format("https://api.twitch.tv/kraken/%s?oauth_token=%s%s",endpoint,PASS[6..$],args)).responseBody();
+	if(useOauth)
+	{
+		return rq.get(format("https://api.twitch.tv/kraken/%s?oauth_token=%s%s",endpoint,PASS[6..$],args)).responseBody(); 	
+	}
+	else
+	{
+		return rq.get(format("https://api.twitch.tv/kraken/%s?%s",endpoint,args)).responseBody();
+	}
+	//return useOauth ? rq.get(format("https://api.twitch.tv/kraken/%s?oauth_token=%s%s",endpoint,PASS[6..$],args)).responseBody() :
+					  //rq.get(format("https://api.twitch.tv/kraken/%s?%s",endpoint,args)).responseBody();
 }

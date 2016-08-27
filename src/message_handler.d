@@ -113,7 +113,7 @@ void messageHandler(Tid owner, ref shared SynchronizedQueue!string messageQueue,
 
 		//if there are new followers to shoutout and 15 seconds have passed since the last shoutout enqueue the shoutout message
 		if(!newFollowerShoutouts.empty() &&
-			(MonoTime.currTime() - lastFollowerMessage).total!"seconds" > 15)
+			(MonoTime.currTime() - lastFollowerMessage).total!"seconds" > 60)
 		{
 			debug.write("Time since last shoutout: ");
 			debug.writeln((MonoTime.currTime() - lastFollowerMessage).total!"seconds");
